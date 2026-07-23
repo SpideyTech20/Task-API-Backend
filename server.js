@@ -1,10 +1,17 @@
 require("dotenv").config();
 const express = require("express");
+//const pool = require("./database");
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
+function formatTask(task) {
+    return {
+        ...task,
+        completed: Boolean(task.completed),
+    };
+}
 let nextId = 1;
 
 class Animal {
@@ -15,140 +22,278 @@ class Animal {
     }
 }
 
-const animals = [
-    new Animal("Dog", 4),
-    new Animal("bird", 2),
-    new Animal("spider", 8),
-    new Animal("ant", 6),
-    new Animal("human", 2)
-];
+const animals = [new Animal("Dog", 4),  new Animal("bird", 2), new Animal("spider", 8), new Animal("ant", 6), new Animal("human", 2)]
+console.log(animals)
 
-console.log(animals);
-
-app.get("/", (req, res) => {
-    res.json({ message: "Animal API is running" });
+app.get("/", (request, response) => {
+    response.json({
+        message: "Task API is running",
+    });
 });
-
-// GET /animals – filter by numLegs (optional)
-app.get("/animals", (req, res) => {
+const getAnimals = (req, res) => {
     const { numLegs } = req.query;
 
-    // If no filter, return all
-    if (numLegs === undefined) {
-        return res.json({ animals });
+    if (!numLegs) {
+        return res.json({
+            animals
+        });
     }
 
-    // Convert query to number and filter
-    const legs = Number(numLegs);
-    if (isNaN(legs)) {
-        return res.status(400).json({ message: "numLegs must be a number" });
-    }
+    const filteredArray = animals.filter(animal =>
+        animal.numLegs === Number(numLegs)
+    );
 
-    const filtered = animals.filter(a => a.numLegs === legs);
-    res.json({ animals: filtered });
-});
+    res.json({
+        animals: filteredArray
+    });
+};
+const getAnimalById = (req, res) => {
 
-// GET /animal/:id – get one by ID
-app.get("/animal/:id", (req, res) => {
     const id = Number(req.params.id);
+
     const animal = animals.find(a => a.id === id);
+
     if (!animal) {
-        return res.status(404).json({ message: "Animal not found" });
+        return res.status(404).json({
+            message: "Animal not found"
+        });
     }
+
     res.json(animal);
-});
+};
 
-// POST /animals – create a new animal (with validation)
-app.post("/animals", (req, res) => {
-    const { name, numLegs } = req.body;
+// Get all tasks
+app.get("/animals", getAnimals)
+app.get("/animals/:id", getAnimalById);
 
-    // Validate required fields
-    if (!name || numLegs === undefined) {
-        return res.status(400).json({ message: "name and numLegs are required" });
-    }
-    if (typeof name !== "string" || !name.trim()) {
-        return res.status(400).json({ message: "name must be a non-empty string" });
-    }
-    const legs = Number(numLegs);
-    if (isNaN(legs) || legs < 0) {
-        return res.status(400).json({ message: "numLegs must be a non-negative number" });
-    }
 
-    const newAnimal = new Animal(name.trim(), legs);
-    animals.push(newAnimal);
-    res.status(201).json(newAnimal);
-});
 
-// PUT /animals/:id – full/partial update (with validation)
-app.put("/animals/:id", (req, res) => {
+const updateAnimal = (req, res) => {
+
     const id = Number(req.params.id);
+
     const animal = animals.find(a => a.id === id);
+
     if (!animal) {
-        return res.status(404).json({ message: "Animal not found" });
+        return res.status(404).json({
+            message: "Animal not found"
+        });
     }
 
-    const { name, numLegs } = req.body;
-
-    // Update name if provided
-    if (name !== undefined) {
-        if (typeof name !== "string" || !name.trim()) {
-            return res.status(400).json({ message: "name must be a non-empty string" });
-        }
-        animal.name = name.trim().toUpperCase();
+    if (req.body.name) {
+        animal.name = req.body.name.toUpperCase();
     }
 
-    // Update numLegs if provided
-    if (numLegs !== undefined) {
-        const legs = Number(numLegs);
-        if (isNaN(legs) || legs < 0) {
-            return res.status(400).json({ message: "numLegs must be a non-negative number" });
-        }
-        animal.numLegs = legs;
+    if (req.body.numLegs !== undefined) {
+        animal.numLegs = req.body.numLegs;
     }
 
-    res.json({ message: "Animal updated", animal });
-});
+    res.json({
+        message: "Animal updated",
+        animal
+    });
+};
 
-// PATCH /animals/:id – explicit partial update (same logic as PUT, but different intent)
-app.patch("/animals/:id", (req, res) => {
+app.put("/animals/:id", updateAnimal);
+
+
+const deleteAnimal = (req, res) => {
+
     const id = Number(req.params.id);
-    const animal = animals.find(a => a.id === id);
-    if (!animal) {
-        return res.status(404).json({ message: "Animal not found" });
-    }
 
-    const { name, numLegs } = req.body;
-
-    if (name !== undefined) {
-        if (typeof name !== "string" || !name.trim()) {
-            return res.status(400).json({ message: "name must be a non-empty string" });
-        }
-        animal.name = name.trim().toUpperCase();
-    }
-
-    if (numLegs !== undefined) {
-        const legs = Number(numLegs);
-        if (isNaN(legs) || legs < 0) {
-            return res.status(400).json({ message: "numLegs must be a non-negative number" });
-        }
-        animal.numLegs = legs;
-    }
-
-    res.json({ message: "Animal partially updated (PATCH)", animal });
-});
-
-// DELETE /animals/:id – remove an animal
-app.delete("/animals/:id", (req, res) => {
-    const id = Number(req.params.id);
     const index = animals.findIndex(a => a.id === id);
-    if (index === -1) {
-        return res.status(404).json({ message: "Animal not found" });
-    }
-    const removed = animals.splice(index, 1)[0];
-    res.json({ message: "Animal deleted", animal: removed });
-});
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-});
+    if (index === -1) {
+        return res.status(404).json({
+            message: "Animal not found"
+        });
+    }
+
+    const deletedAnimal = animals.splice(index, 1);
+
+    res.json({
+        message: "Animal deleted",
+        animal: deletedAnimal[0]
+    });
+};
+
+app.delete("/animals/:id", deleteAnimal);
+
+const addAnimal = (req, res) => {
+
+    console.log("BODY:", req.body);
+
+    if (!req.body) {
+        return res.status(400).json({
+            message: "Request body is missing"
+        });
+    }
+
+    const { name, numLegs } = req.body;
+
+    if (!name || numLegs === undefined) {
+        return res.status(400).json({
+            message: "name and numLegs are required"
+        });
+    }
+
+    const animal = new Animal(name, numLegs);
+
+    animals.push(animal);
+
+    res.status(201).json({
+        message: "Animal added",
+        animal
+    });
+};
+
+app.post("/animals", addAnimal)
+// // Get one task
+// app.get("/tasks/:id", async (request, response) => {
+//     try {
+//         const id = Number(request.params.id);
+//         const [tasks] = await pool.execute(
+//             `SELECT id, title, completed, created_at, updated_at
+//              FROM tasks
+//              WHERE id = ?`,
+//             [id]
+//         );
+//         if (tasks.length === 0) {
+//             return response.status(404).json({
+//                 message: "Task not found",
+//             });
+//         }
+//         response.json(formatTask(tasks[0]));
+//     } catch (error) {
+//         console.error(error);
+//         response.status(500).json({
+//             message: "Unable to retrieve task",
+//         });
+//     }
+// });
+
+// // Create a task
+// app.post("/tasks", async (request, response) => {
+//     try {
+//         const { title } = request.body;
+//         if (typeof title !== "string" || !title.trim()) {
+//             return response.status(400).json({
+//                 message: "Title is required",
+//             });
+//         }
+//         const [result] = await pool.execute(
+//             "INSERT INTO tasks (title) VALUES (?)",
+//             [title.trim()]
+//         );
+//         const [tasks] = await pool.execute(
+//             `SELECT id, title, completed, created_at, updated_at
+//              FROM tasks
+//              WHERE id = ?`,
+//             [result.insertId]
+//         );
+//         response.status(201).json(formatTask(tasks[0]));
+//     } catch (error) {
+//         console.error(error);
+//         response.status(500).json({
+//             message: "Unable to create task",
+//         });
+//     }
+// });
+
+// // Update a task
+// app.put("/tasks/:id", async (request, response) => {
+//     try {
+//         const id = Number(request.params.id);
+//         const { title, completed } = request.body;
+
+//         const [existingTasks] = await pool.execute(
+//             "SELECT id, title, completed FROM tasks WHERE id = ?",
+//             [id]
+//         );
+//         if (existingTasks.length === 0) {
+//             return response.status(404).json({
+//                 message: "Task not found",
+//             });
+//         }
+
+//         const currentTask = existingTasks[0];
+//         let updatedTitle = currentTask.title;
+//         let updatedCompleted = Boolean(currentTask.completed);
+
+//         if (title !== undefined) {
+//             if (typeof title !== "string" || !title.trim()) {
+//                 return response.status(400).json({
+//                     message: "Title must be a non-empty string",
+//                 });
+//             }
+//             updatedTitle = title.trim();
+//         }
+//         if (completed !== undefined) {
+//             if (typeof completed !== "boolean") {
+//                 return response.status(400).json({
+//                     message: "Completed must be a boolean",
+//                 });
+//             }
+//             updatedCompleted = completed;
+//         }
+
+//         await pool.execute(
+//             `UPDATE tasks
+//              SET title = ?, completed = ?
+//              WHERE id = ?`,
+//             [updatedTitle, updatedCompleted, id]
+//         );
+
+//         const [tasks] = await pool.execute(
+//             `SELECT id, title, completed, created_at, updated_at
+//              FROM tasks
+//              WHERE id = ?`,
+//             [id]
+//         );
+//         response.json(formatTask(tasks[0]));
+//     } catch (error) {
+//         console.error(error);
+//         response.status(500).json({
+//             message: "Unable to update task",
+//         });
+//     }
+// });
+
+// // Delete a task
+// app.delete("/tasks/:id", async (request, response) => {
+//     try {
+//         const id = Number(request.params.id);
+//         const [result] = await pool.execute(
+//             "DELETE FROM tasks WHERE id = ?",
+//             [id]
+//         );
+//         if (result.affectedRows === 0) {
+//             return response.status(404).json({
+//                 message: "Task not found",
+//             });
+//         }
+//         response.json({
+//             message: "Task deleted successfully",
+//         });
+//     } catch (error) {
+//         console.error(error);
+//         response.status(500).json({
+//             message: "Unable to delete task",
+//         });
+//     }
+// });
+
+async function startServer() {
+    try {
+        //const connection = await pool.getConnection();
+        //console.log("Connected to MySQL successfully");
+        //connection.release();
+        app.listen(PORT, () => {
+            console.log(`Server is running at http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error("Unable to connect to MySQL:", error.message);
+        process.exit(1);
+    }
+}
+startServer();
